@@ -279,6 +279,7 @@ struct InvalidPub {
     plaintext: &'static str,
     ciphertext: &'static str,
     note: &'static str,
+    error: Error,
 }
 
 #[derive(Debug, Clone)]
@@ -287,9 +288,10 @@ struct InvalidPubParsed {
     pub2: XOnlyPublicKey,
     shared: [u8; 32],
     //salt: [u8; 32],
-    //plaintext: &'static str,
+    plaintext: &'static str,
     ciphertext: &'static str,
     note: &'static str,
+    error: Error,
 }
 
 impl InvalidPub {
@@ -303,9 +305,10 @@ impl InvalidPub {
             pub2,
             shared: hex::decode(self.shared).unwrap().try_into().unwrap(),
             //salt: hex::decode(self.salt).unwrap().try_into().unwrap(),
-            //plaintext: self.plaintext,
+            plaintext: self.plaintext,
             ciphertext: self.ciphertext,
             note: self.note,
+            error: self.error,
         }
     }
 }
@@ -324,11 +327,10 @@ pub fn test_invalid_pub_test_vectors() {
         );
 
         // Test decryption fails
-        assert!(
-            decrypt(&conversation_key, &vector.ciphertext).is_err(),
-            "Should not have decrypted: {}",
-            vector.note
-        );
+        let result = decrypt(&conversation_key, &vector.ciphertext);
+        assert!(result.is_err(), "Should not have decrypted: {}", vector.note);
+        let err = result.unwrap_err();
+        assert_eq!(err, vector.error, "Plaintext was {}", vector.plaintext);
     }
 }
 
@@ -340,7 +342,8 @@ const INVALID_PUB: [InvalidPub; 8] = [
         salt: "daaea5ca345b268e5b62060ca72c870c48f713bc1e00ff3fc0ddb78e826f10db",
         plaintext: "n o s t r",
         ciphertext: "##Atqupco0WyaOW2IGDKcshwxI9xO8HgD/P8Ddt46CbxDbOsrsqIEybscEwg5rnI/Cx03mDSmeweOLKD7dw5BDZQDxXSlCwX1LIcTJEZaJPTz98Ftu0zSE0d93ED7OtdlvNeZx",
-        note: "unknown encryption version"
+        note: "unknown encryption version",
+        error: Error::UnsupportedFutureVersion,
     },
     InvalidPub {
         sec1: "11063318c5cb3cd9cafcced42b4db5ea02ec976ed995962d2bc1fa1e9b52e29f",
@@ -349,7 +352,8 @@ const INVALID_PUB: [InvalidPub; 8] = [
         salt: "ad408d4be8616dc84bb0bf046454a2a102edac937c35209c43cd7964c5feb781",
         plaintext: "⚠️",
         ciphertext: "AK1AjUvoYW3IS7C/BGRUoqEC7ayTfDUgnEPNeWTF/reBA4fZmoHrtrz5I5pCHuwWZ22qqL/Xt1VidEZGMLds0yaJ5VwUbeEifEJlPICOFt1ssZJxCUf43HvRwCVTFskbhSMh",
-        note: "unknown encryption version: 0"
+        note: "unknown encryption version: 0",
+        error: Error::UnknownVersion,
     },
     InvalidPub {
         sec1: "2573d1e9b9ac5de5d570f652cbb9e8d4f235e3d3d334181448e87c417f374e83",
@@ -358,7 +362,8 @@ const INVALID_PUB: [InvalidPub; 8] = [
         salt: "daaea5ca345b268e5b62060ca72c870c48f713bc1e00ff3fc0ddb78e826f10db",
         plaintext: "n o s t r",
         ciphertext: "Atqupco0WyaOW2IGDKcshwxI9xO8HgD/P8Ddt46CbxDbOsrsqIEybscEwg5rnI/Cx03mDSmeweOLKD,7dw5BDZQDxXSlCwX1LIcTJEZaJPTz98Ftu0zSE0d93ED7OtdlvNeZx",
-        note: "invalid base64"
+        note: "invalid base64",
+        error: Error::Base64Decode(base64::DecodeError::InvalidLength),
     },
     InvalidPub {
         sec1: "5a2f39347fed3883c9fe05868a8f6156a292c45f606bc610495fcc020ed158f7",
@@ -367,7 +372,8 @@ const INVALID_PUB: [InvalidPub; 8] = [
         salt: "09ff97750b084012e15ecb84614ce88180d7b8ec0d468508a86b6d70c0361a25",
         plaintext: "¯\\_(ツ)_/¯",
         ciphertext: "Agn/l3ULCEAS4V7LhGFM6IGA17jsDUaFCKhrbXDANholdUejFZPARM22IvOqp1U/UmFSkeSyTBYbbwy5ykmi+mKiEcWL+nVmTOf28MMiC+rTpZys/8p1hqQFpn+XWZRPrVay",
-        note: "invalid MAC"
+        note: "invalid MAC",
+        error: Error::InvalidMac,
     },
     InvalidPub {
         sec1: "067eda13c4a36090ad28a7a183e9df611186ca01f63cb30fcdfa615ebfd6fb6d",
@@ -376,7 +382,8 @@ const INVALID_PUB: [InvalidPub; 8] = [
         salt: "65b14b0b949aaa7d52c417eb753b390e8ad6d84b23af4bec6d9bfa3e03a08af4",
         plaintext: "🥎",
         ciphertext: "AmWxSwuUmqp9UsQX63U7OQ6K1thLI69L7G2b+j4DoIr0U0P/M1/oKm95z8qz6Kg0zQawLzwk3DskvWA2drXP4zK+tzHpKvWq0KOdx5MdypboSQsP4NXfhh2KoUffjkyIOiMA",
-        note: "invalid MAC"
+        note: "invalid MAC",
+        error: Error::InvalidMac,
     },
     InvalidPub {
         sec1: "3e7be560fb9f8c965c48953dbd00411d48577e200cf00d7cc427e49d0e8d9c01",
@@ -385,7 +392,8 @@ const INVALID_PUB: [InvalidPub; 8] = [
         salt: "7ab65dbb8bbc2b8e35cafb5745314e1f050325a864d11d0475ef75b3660d91c1",
         plaintext: "elliptic-curve cryptography",
         ciphertext: "Anq2XbuLvCuONcr7V0UxTh8FAyWoZNEdBHXvdbNmDZHBu7F9m36yBd58mVUBB5ktBTOJREDaQT1KAyPmZidP+IRea1lNw5YAEK7+pbnpfCw8CD0i2n8Pf2IDWlKDhLiVvatw",
-        note: "invalid padding"
+        note: "invalid padding",
+        error: Error::MessageIsEmpty,
     },
     InvalidPub {
         sec1: "c22e1d4de967aa39dc143354d8f596cec1d7c912c3140831fff2976ce3e387c1",
@@ -394,7 +402,8 @@ const INVALID_PUB: [InvalidPub; 8] = [
         salt: "7d4283e3b54c885d6afee881f48e62f0a3f5d7a9e1cb71ccab594a7882c39330",
         plaintext: "Peer-to-Peer",
         ciphertext: "An1Cg+O1TIhdav7ogfSOYvCj9dep4ctxzKtZSniCw5MwhT0hvSnF9Xjp9Lml792qtNbmAVvR6laukTe9eYEjeWPpZFxtkVpYTbbL9wDKFeplDMKsUKVa+roSeSvv0ela9seDVl2Sfso=",
-        note: "invalid padding"
+        note: "invalid padding",
+        error: Error::InvalidPadding,
     },
     InvalidPub {
         sec1: "be1edab14c5912e5c59084f197f0945242e969c363096cccb59af8898815096f",
@@ -403,7 +412,8 @@ const INVALID_PUB: [InvalidPub; 8] = [
         salt: "6f9fd72667c273acd23ca6653711a708434474dd9eb15c3edb01ce9a95743e9b",
         plaintext: "censorship-resistant and global social network",
         ciphertext: "Am+f1yZnwnOs0jymZTcRpwhDRHTdnrFcPtsBzpqVdD6bL9HUMo3Mjkz4bjQo/FJF2LWHmaCr9Byc3hU9D7we+EkNBWenBHasT1G52fZk9r3NKeOC1hLezNwBLr7XXiULh+NbMBDtJh9/aQh1uZ9EpAfeISOzbZXwYwf0P5M85g9XER8hZ2fgJDLb4qMOuQRG6CrPezhr357nS3UHwPC2qHo3uKACxhE+2td+965yDcvMTx4KYTQg1zNhd7PA5v/WPnWeq2B623yLxlevUuo/OvXplFho3QVy7s5QZVop6qV2g2/l/SIsvD0HIcv3V35sywOCBR0K4VHgduFqkx/LEF3NGgAbjONXQHX8ZKushsEeR4TxlFoRSovAyYjhWolz+Ok3KJL2Ertds3H+M/Bdl2WnZGT0IbjZjn3DS+b1Ke0R0X4Onww2ZG3+7o6ncIwTc+lh1O7YQn00V0HJ+EIp03heKV2zWdVSC615By/+Yt9KAiV56n5+02GAuNqA",
-        note: "invalid padding"
+        note: "invalid padding",
+        error: Error::InvalidPadding,
     }
 ];
 

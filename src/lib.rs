@@ -7,7 +7,9 @@ use rand_core::{OsRng, RngCore};
 use secp256k1::ecdh::shared_secret_point;
 use secp256k1::{Parity, PublicKey, SecretKey, XOnlyPublicKey};
 use sha2::Sha256;
-use std::error::Error;
+
+mod error;
+pub use error::Error;
 
 #[cfg(test)]
 mod tests;
@@ -52,16 +54,12 @@ pub fn get_conversation_key(
 fn get_message_keys(
     conversation_key: &[u8; 32],
     salt: &[u8; 32],
-) -> Result<MessageKeys, Box<dyn Error>> {
+) -> Result<MessageKeys, Error> {
     let hk = Hkdf::<Sha256>::new(Some(&salt[..]), conversation_key);
     let mut message_keys: MessageKeys = MessageKeys::zero();
-    hk.expand("nip44-v2".as_bytes(), &mut message_keys.0)
-        .map_err(|_| {
-            Box::new(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "Invalid Length for HKDF",
-            ))
-        })?;
+    if let Err(_) = hk.expand("nip44-v2".as_bytes(), &mut message_keys.0) {
+        return Err(Error::HkdfLength(message_keys.0.len()));
+    }
     Ok(message_keys)
 }
 
@@ -78,19 +76,13 @@ fn calc_padding(len: usize) -> usize {
     }
 }
 
-fn pad(unpadded: &str) -> Result<Vec<u8>, Box<dyn Error>> {
+fn pad(unpadded: &str) -> Result<Vec<u8>, Error> {
     let len: usize = unpadded.len();
     if len < 1 {
-        return Err(Box::new(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "Message is empty",
-        )));
+        return Err(Error::MessageIsEmpty);
     }
     if len > 65536 - 128 {
-        return Err(Box::new(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "Message too long",
-        )));
+        return Err(Error::MessageIsTooLong);
     }
 
     let mut padded: Vec<u8> = Vec::new();
@@ -103,7 +95,7 @@ fn pad(unpadded: &str) -> Result<Vec<u8>, Box<dyn Error>> {
 /// Encrypt a plaintext message with a conversation key.
 /// The output is a base64 encoded string that can be placed into message contents.
 #[inline]
-pub fn encrypt(conversation_key: &[u8; 32], plaintext: &str) -> Result<String, Box<dyn Error>> {
+pub fn encrypt(conversation_key: &[u8; 32], plaintext: &str) -> Result<String, Error> {
     encrypt_inner(conversation_key, plaintext, None)
 }
 
@@ -111,7 +103,7 @@ fn encrypt_inner(
     conversation_key: &[u8; 32],
     plaintext: &str,
     override_random_salt: Option<&[u8; 32]>,
-) -> Result<String, Box<dyn Error>> {
+) -> Result<String, Error> {
     let salt = match override_random_salt {
         Some(salt) => salt.to_owned(),
         None => {
@@ -141,21 +133,15 @@ fn encrypt_inner(
 pub fn decrypt(
     conversation_key: &[u8; 32],
     base64_ciphertext: &str,
-) -> Result<String, Box<dyn Error>> {
+) -> Result<String, Error> {
     if base64_ciphertext.as_bytes()[0] == b'#' {
-        return Err(Box::new(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "Encryption version not yet supported",
-        )));
+        return Err(Error::UnsupportedFutureVersion);
     }
     let binary_ciphertext: Vec<u8> =
         base64::engine::general_purpose::STANDARD.decode(base64_ciphertext)?;
     let version = binary_ciphertext[0];
     if version != 2 {
-        return Err(Box::new(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "Unknown encryption version",
-        )));
+        return Err(Error::UnknownVersion);
     }
     let dlen = binary_ciphertext.len();
     let salt = &binary_ciphertext[1..33];
@@ -166,32 +152,20 @@ pub fn decrypt(
     calculated_mac.update(&buffer);
     let calculated_mac_bytes = calculated_mac.finalize().into_bytes();
     if mac != calculated_mac_bytes.as_slice() {
-        return Err(Box::new(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "Invalid Message Authentication Code",
-        )));
+        return Err(Error::InvalidMac);
     }
     let mut cipher = ChaCha20::new(&keys.encryption().into(), &keys.nonce().into());
     cipher.apply_keystream(&mut buffer);
     let unpadded_len = u16::from_be_bytes(buffer[0..2].try_into().unwrap()) as usize;
     let unpadded = &buffer[2..2 + unpadded_len];
     if unpadded.is_empty() {
-        return Err(Box::new(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "Empty message",
-        )));
+        return Err(Error::MessageIsEmpty);
     }
     if unpadded.len() != unpadded_len {
-        return Err(Box::new(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "Logic error 1",
-        )));
+        return Err(Error::InvalidPadding);
     }
     if buffer.len() != 2 + calc_padding(unpadded_len) {
-        return Err(Box::new(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "Logic error 2",
-        )));
+        return Err(Error::InvalidPadding);
     }
     Ok(String::from_utf8(unpadded.to_vec())?)
 }
