@@ -508,60 +508,47 @@ fn bench_encryption_inner() {
 
     let shared = get_conversation_key(sec1, pub2);
 
-    let message = r##"
-The compiler could theoretically make optimizations like the following:
-
-    needle and haystack are always the same, move the call to contains outside the loop and delete the loop
-    Inline contains
-    needle and haystack have values known at compile time, contains is always true. Remove the call and replace with true
-    Nothing is done with the result of contains: delete this function call entirely
-    benchmark now has no purpose: delete this function
-
-It is not likely that all of the above happens, but the compiler is definitely able to make some optimizations that could result in a very inaccurate benchmark. This is where black_box comes in:
-
-use std::hint::black_box;
-
-// Same `contains` function
-fn contains(haystack: &[&str], needle: &str) -> bool {
-    haystack.iter().any(|x| x == &needle)
-}
-
-pub fn benchmark() {
-    let haystack = vec!["abc", "def", "ghi", "jkl", "mno"];
-    let needle = "ghi";
-    for _ in 0..10 {
-        // Adjust our benchmark loop contents
-        black_box(contains(black_box(&haystack), black_box(needle)));
-    }
-}
-
-Run
-
-This essentially tells the compiler to block optimizations across any calls to black_box. So, it now:
-
-    Treats both arguments to contains as unpredictable: the body of contains can no longer be optimized based on argument values
-    Treats the call to contains and its result as volatile: the body of benchmark cannot optimize this away
-
-This makes our benchmark much more realistic to how the function would be used in situ, where arguments are usually not known at compile time and the result is used in some way.
-"##;
-
+    // Bench a maximum length message
+    let message: Vec<u8> = std::iter::repeat(0).take(65536 - 128).collect();
+    let message = unsafe { String::from_utf8_unchecked(message) };
     let start = std::time::Instant::now();
     let rounds = 32768;
     for _ in 0..rounds {
         std::hint::black_box({
-            let encrypted = encrypt(&shared, message).unwrap();
+            let encrypted = encrypt(&shared, &*message).unwrap();
             let _decrypted = decrypt(&shared, &*encrypted).unwrap();
         });
     }
     let elapsed = start.elapsed();
     let total_nanos = elapsed.as_nanos();
-    let nanos_per_encryption_and_decryption = total_nanos / rounds as u128;
-    let nanos_per_encryption_and_decryption_per_char =
-        10 * nanos_per_encryption_and_decryption / message.len() as u128;
+    let nanos_per_roundtrip = total_nanos / rounds as u128;
+    let nanosx10_per_roundtrip_per_char_long = 10 * nanos_per_roundtrip / message.len() as u128;
+
+    // Bench a minimal length message
+    let message = "a";
+    let start = std::time::Instant::now();
+    let rounds = 32768;
+    for _ in 0..rounds {
+        std::hint::black_box({
+            let encrypted = encrypt(&shared, &*message).unwrap();
+            let _decrypted = decrypt(&shared, &*encrypted).unwrap();
+        });
+    }
+    let elapsed = start.elapsed();
+    let total_nanos = elapsed.as_nanos();
+    let nanos_per_roundtrip = total_nanos / rounds as u128;
+    let nanosx10_per_roundtrip_per_char_short = 10 * nanos_per_roundtrip / message.len() as u128;
+
+    // This is approximate math, assuming overhead is negligable on the long message, which
+    // is approximately true.
+    let percharx10 = nanosx10_per_roundtrip_per_char_long;
+    let overheadx10 = nanosx10_per_roundtrip_per_char_short - percharx10;
 
     println!(
-        "{}.{} nanoseconds per character (encrypt and decrypt)",
-        nanos_per_encryption_and_decryption_per_char / 10,
-        nanos_per_encryption_and_decryption_per_char % 10,
+        "{}.{}ns plus {}.{}ns per character (encrypt and decrypt)",
+        overheadx10 / 10,
+        overheadx10 % 10,
+        percharx10 / 10,
+        percharx10 % 10
     );
 }
