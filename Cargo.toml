@@ -1,0 +1,23 @@
+[package]
+name = "nip44"
+version = "0.1.0"
+description = "nostr NIP-44 encryption code"
+authors = ["Mike Dilger <mike@mikedilger.com>"]
+license = "MIT"
+repository = "https://github.com/mikedilger/nip44"
+homepage = "https://github.com/mikedilger/nip44"
+readme = "README.md"
+edition = "2021"
+
+[dependencies]
+base64 = "0.21"
+chacha20 = "0.9"
+hkdf = "0.12"
+hmac = "0.12"
+hex = "*"
+rand_core = "0.6"
+secp256k1 = { version = "0.27", features = [ "bitcoin-hashes", "global-context", "rand-std" ] }
+sha2 = "*"
+
+[dev-dependencies]
+hex = "0.4"
