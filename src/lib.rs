@@ -51,10 +51,7 @@ pub fn get_conversation_key(
     ssp.try_into().unwrap()
 }
 
-fn get_message_keys(
-    conversation_key: &[u8; 32],
-    salt: &[u8; 32],
-) -> Result<MessageKeys, Error> {
+fn get_message_keys(conversation_key: &[u8; 32], salt: &[u8; 32]) -> Result<MessageKeys, Error> {
     let hk = Hkdf::<Sha256>::new(Some(&salt[..]), conversation_key);
     let mut message_keys: MessageKeys = MessageKeys::zero();
     if let Err(_) = hk.expand("nip44-v2".as_bytes(), &mut message_keys.0) {
@@ -130,10 +127,7 @@ fn encrypt_inner(
 }
 
 /// Decrypt the base64 encrypted contents with a conversation key
-pub fn decrypt(
-    conversation_key: &[u8; 32],
-    base64_ciphertext: &str,
-) -> Result<String, Error> {
+pub fn decrypt(conversation_key: &[u8; 32], base64_ciphertext: &str) -> Result<String, Error> {
     if base64_ciphertext.as_bytes()[0] == b'#' {
         return Err(Error::UnsupportedFutureVersion);
     }

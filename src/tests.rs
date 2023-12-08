@@ -328,7 +328,11 @@ pub fn test_invalid_pub_test_vectors() {
 
         // Test decryption fails
         let result = decrypt(&conversation_key, &vector.ciphertext);
-        assert!(result.is_err(), "Should not have decrypted: {}", vector.note);
+        assert!(
+            result.is_err(),
+            "Should not have decrypted: {}",
+            vector.note
+        );
         let err = result.unwrap_err();
         assert_eq!(err, vector.error, "Plaintext was {}", vector.plaintext);
     }
