@@ -54,7 +54,7 @@ pub fn get_conversation_key(
 fn get_message_keys(conversation_key: &[u8; 32], salt: &[u8; 32]) -> Result<MessageKeys, Error> {
     let hk = Hkdf::<Sha256>::new(Some(&salt[..]), conversation_key);
     let mut message_keys: MessageKeys = MessageKeys::zero();
-    if let Err(_) = hk.expand("nip44-v2".as_bytes(), &mut message_keys.0) {
+    if hk.expand("nip44-v2".as_bytes(), &mut message_keys.0).is_err() {
         return Err(Error::HkdfLength(message_keys.0.len()));
     }
     Ok(message_keys)
