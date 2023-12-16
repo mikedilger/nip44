@@ -39,10 +39,7 @@ impl MessageKeys {
 }
 
 /// A conversation key is the long-term secret that two nostr identities share.
-fn get_shared_point(
-    private_key_a: SecretKey,
-    x_only_public_key_b: XOnlyPublicKey,
-) -> [u8; 32] {
+fn get_shared_point(private_key_a: SecretKey, x_only_public_key_b: XOnlyPublicKey) -> [u8; 32] {
     let pubkey = PublicKey::from_x_only_public_key(x_only_public_key_b, Parity::Even);
     let mut ssp = shared_secret_point(&pubkey, &private_key_a)
         .as_slice()
@@ -56,12 +53,13 @@ pub fn get_conversation_key(
     x_only_public_key_b: XOnlyPublicKey,
 ) -> [u8; 32] {
     let shared_point = get_shared_point(private_key_a, x_only_public_key_b);
-    let (convo_key, _hkdf) = Hkdf::<Sha256>::extract(Some("nip44-v2".as_bytes()), shared_point.as_slice());
+    let (convo_key, _hkdf) =
+        Hkdf::<Sha256>::extract(Some("nip44-v2".as_bytes()), shared_point.as_slice());
     convo_key.into()
 }
 
 fn get_message_keys(conversation_key: &[u8; 32], nonce: &[u8; 32]) -> Result<MessageKeys, Error> {
-    let hk: Hkdf::<Sha256> = match Hkdf::from_prk(conversation_key) {
+    let hk: Hkdf<Sha256> = match Hkdf::from_prk(conversation_key) {
         Ok(hk) => hk,
         Err(_) => return Err(Error::HkdfLength(conversation_key.len())),
     };
