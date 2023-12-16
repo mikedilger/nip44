@@ -111,18 +111,18 @@ pub fn encrypt(conversation_key: &[u8; 32], plaintext: &str) -> Result<String, E
 fn encrypt_inner(
     conversation_key: &[u8; 32],
     plaintext: &str,
-    override_random_salt: Option<&[u8; 32]>,
+    override_random_nonce: Option<&[u8; 32]>,
 ) -> Result<String, Error> {
-    let salt = match override_random_salt {
-        Some(salt) => salt.to_owned(),
+    let nonce = match override_random_nonce {
+        Some(nonce) => nonce.to_owned(),
         None => {
-            let mut salt: [u8; 32] = [0; 32];
-            OsRng.fill_bytes(&mut salt);
-            salt
+            let mut nonce: [u8; 32] = [0; 32];
+            OsRng.fill_bytes(&mut nonce);
+            nonce
         }
     };
 
-    let keys = get_message_keys(conversation_key, &salt)?;
+    let keys = get_message_keys(conversation_key, &nonce)?;
     let mut buffer = pad(plaintext)?;
     let mut cipher = ChaCha20::new(&keys.encryption().into(), &keys.nonce().into());
     cipher.apply_keystream(&mut buffer);
@@ -131,7 +131,7 @@ fn encrypt_inner(
     let mac_bytes = mac.finalize().into_bytes();
 
     let mut pre_base64: Vec<u8> = vec![2];
-    pre_base64.extend_from_slice(&salt);
+    pre_base64.extend_from_slice(&nonce);
     pre_base64.extend_from_slice(&buffer);
     pre_base64.extend_from_slice(&mac_bytes);
 
@@ -150,10 +150,10 @@ pub fn decrypt(conversation_key: &[u8; 32], base64_ciphertext: &str) -> Result<S
         return Err(Error::UnknownVersion);
     }
     let dlen = binary_ciphertext.len();
-    let salt = &binary_ciphertext[1..33];
+    let nonce = &binary_ciphertext[1..33];
     let mut buffer = binary_ciphertext[33..dlen - 32].to_owned();
     let mac = &binary_ciphertext[dlen - 32..dlen];
-    let keys = get_message_keys(conversation_key, &salt.try_into().unwrap())?;
+    let keys = get_message_keys(conversation_key, &nonce.try_into().unwrap())?;
     let mut calculated_mac = Hmac::<Sha256>::new_from_slice(&keys.auth())?;
     calculated_mac.update(&buffer);
     let calculated_mac_bytes = calculated_mac.finalize().into_bytes();
