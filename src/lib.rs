@@ -165,6 +165,9 @@ pub fn decrypt(conversation_key: &[u8; 32], base64_ciphertext: &str) -> Result<S
     let mut cipher = ChaCha20::new(&keys.encryption().into(), &keys.nonce().into());
     cipher.apply_keystream(&mut buffer);
     let unpadded_len = u16::from_be_bytes(buffer[0..2].try_into().unwrap()) as usize;
+    if buffer.len() < 2 + unpadded_len {
+        return Err(Error::InvalidPadding);
+    }
     let unpadded = &buffer[2..2 + unpadded_len];
     if unpadded.is_empty() {
         return Err(Error::MessageIsEmpty);
