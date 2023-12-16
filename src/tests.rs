@@ -268,3 +268,66 @@ fn test_invalid_decrypt() {
         );
     }
 }
+
+#[test]
+fn bench_encryption_inner() {
+    const SEC1HEX: &'static str =
+        "dc4b57c5fe856584b01aab34dad7454b0f715bdfab091bf0dbbe12f65c778838";
+    const SEC2HEX: &'static str =
+        "3072ab28ed7d5c2e4f5efbdcde5fb11455ab7f976225d1779a1751eb6400411a";
+
+    let sec1bytes = hex::decode(SEC1HEX).unwrap();
+    let sec1 = SecretKey::from_slice(&sec1bytes).unwrap();
+
+    let sec2bytes = hex::decode(SEC2HEX).unwrap();
+    let sec2 = SecretKey::from_slice(&sec2bytes).unwrap();
+
+    let (pub2, _) = sec2.x_only_public_key(&SECP256K1);
+
+    let shared = get_conversation_key(sec1, pub2);
+
+    // Bench a maximum length message
+    let message: Vec<u8> = std::iter::repeat(0).take(65536 - 128).collect();
+    let message = unsafe { String::from_utf8_unchecked(message) };
+    let start = std::time::Instant::now();
+    let rounds = 32768;
+    for _ in 0..rounds {
+        std::hint::black_box({
+            let encrypted = encrypt(&shared, &*message).unwrap();
+            let _decrypted = decrypt(&shared, &*encrypted).unwrap();
+        });
+    }
+    let elapsed = start.elapsed();
+    let total_nanos = elapsed.as_nanos();
+    let nanos_per_roundtrip = total_nanos / rounds as u128;
+    let nanosx10_per_roundtrip_per_char_long = 10 * nanos_per_roundtrip / message.len() as u128;
+
+    // Bench a minimal length message
+    let message = "a";
+    let start = std::time::Instant::now();
+    let rounds = 32768;
+    for _ in 0..rounds {
+        std::hint::black_box({
+            let encrypted = encrypt(&shared, &*message).unwrap();
+            let _decrypted = decrypt(&shared, &*encrypted).unwrap();
+        });
+     }
+    let elapsed = start.elapsed();
+    let total_nanos = elapsed.as_nanos();
+    let nanos_per_roundtrip = total_nanos / rounds as u128;
+    let nanosx10_per_roundtrip_per_char_short = 10 * nanos_per_roundtrip / message.len() as u128;
+
+    // This is approximate math, assuming overhead is negligable on the long message, which
+    // is approximately true.
+    let percharx10 = nanosx10_per_roundtrip_per_char_long;
+    let overheadx10 = nanosx10_per_roundtrip_per_char_short - percharx10;
+
+    println!(
+        "{}.{}ns plus {}.{}ns per character (encrypt and decrypt)",
+        overheadx10 / 10,
+        overheadx10 % 10,
+        percharx10 / 10,
+        percharx10 % 10
+    );
+}
+
