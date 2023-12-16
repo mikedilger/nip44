@@ -39,7 +39,7 @@ impl MessageKeys {
 }
 
 /// A conversation key is the long-term secret that two nostr identities share.
-pub fn get_conversation_key(
+fn get_shared_point(
     private_key_a: SecretKey,
     x_only_public_key_b: XOnlyPublicKey,
 ) -> [u8; 32] {
@@ -51,10 +51,22 @@ pub fn get_conversation_key(
     ssp.try_into().unwrap()
 }
 
-fn get_message_keys(conversation_key: &[u8; 32], salt: &[u8; 32]) -> Result<MessageKeys, Error> {
-    let hk = Hkdf::<Sha256>::new(Some(&salt[..]), conversation_key);
+pub fn get_conversation_key(
+    private_key_a: SecretKey,
+    x_only_public_key_b: XOnlyPublicKey,
+) -> [u8; 32] {
+    let shared_point = get_shared_point(private_key_a, x_only_public_key_b);
+    let (convo_key, _hkdf) = Hkdf::<Sha256>::extract(Some("nip44-v2".as_bytes()), shared_point.as_slice());
+    convo_key.into()
+}
+
+fn get_message_keys(conversation_key: &[u8; 32], nonce: &[u8; 32]) -> Result<MessageKeys, Error> {
+    let hk: Hkdf::<Sha256> = match Hkdf::from_prk(conversation_key) {
+        Ok(hk) => hk,
+        Err(_) => return Err(Error::HkdfLength(conversation_key.len())),
+    };
     let mut message_keys: MessageKeys = MessageKeys::zero();
-    if hk.expand("nip44-v2".as_bytes(), &mut message_keys.0).is_err() {
+    if hk.expand(&nonce[..], &mut message_keys.0).is_err() {
         return Err(Error::HkdfLength(message_keys.0.len()));
     }
     Ok(message_keys)
