@@ -3,7 +3,7 @@ use chacha20::cipher::{KeyIvInit, StreamCipher};
 use chacha20::ChaCha20;
 use hkdf::Hkdf;
 use hmac::{Hmac, Mac};
-use rand_core::{OsRng, RngCore};
+use rand_core::{OsRng, TryRngCore};
 use secp256k1::ecdh::shared_secret_point;
 use secp256k1::{Parity, PublicKey, SecretKey, XOnlyPublicKey};
 use sha2::Sha256;
@@ -120,7 +120,7 @@ fn encrypt_inner(
         Some(nonce) => nonce.to_owned(),
         None => {
             let mut nonce: [u8; 32] = [0; 32];
-            OsRng.fill_bytes(&mut nonce);
+            OsRng.try_fill_bytes(&mut nonce)?;
             nonce
         }
     };
