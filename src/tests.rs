@@ -269,6 +269,8 @@ fn test_invalid_decrypt() {
     }
 }
 
+// Run this with `cargo test --release --  --ignored --no-capture`
+#[ignore]
 #[test]
 fn bench_encryption_inner() {
     const SEC1HEX: &'static str =
