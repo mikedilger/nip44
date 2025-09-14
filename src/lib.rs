@@ -96,11 +96,11 @@ fn pad(unpadded: &str) -> Result<Vec<u8>, Error> {
     if len < 65536 {
         padded.extend_from_slice(&(len as u16).to_be_bytes());
     } else {
-        padded.extend_from_slice(&(0 as u16).to_be_bytes());
+        padded.extend_from_slice(&(0_u16).to_be_bytes());
         padded.extend_from_slice(&(len as u32).to_be_bytes());
     }
     padded.extend_from_slice(unpadded.as_bytes());
-    padded.extend(std::iter::repeat(0).take(calc_padding(len) - len));
+    padded.extend(std::iter::repeat_n(0, calc_padding(len) - len));
     Ok(padded)
 }
 
