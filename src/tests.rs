@@ -221,7 +221,7 @@ fn test_invalid_decrypt() {
         Error::InvalidMac,
         Error::InvalidMac,
         Error::InvalidPadding,
-        Error::MessageIsEmpty,
+        Error::InvalidPadding,
         Error::InvalidPadding,
         Error::InvalidPadding,
     ];

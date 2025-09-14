@@ -26,7 +26,7 @@ pub enum Error {
     #[error("Message is empty")]
     MessageIsEmpty,
 
-    /// Message is too long (max len 65536 - 128)
+    /// Message is too long (max len 4_294_967_296 - 128)
     #[error("Message is too long")]
     MessageIsTooLong,
 
